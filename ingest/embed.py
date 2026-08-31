@@ -15,25 +15,21 @@ Usage:
 import argparse
 import hashlib
 import json
-import os
 import pathlib
+import sys
 import time
 import urllib.error
 import urllib.request
 
 import numpy as np
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from config import resolve_key
+
 MODEL = "text-embedding-3-small"
 DIMS = 1536
 BATCH = 128
 ENDPOINT = "https://api.openai.com/v1/embeddings"
-
-
-def api_key() -> str:
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        raise SystemExit("OPENAI_API_KEY is not set")
-    return key
 
 
 def embed_batch(texts: list[str], key: str, retries: int = 5) -> list[list[float]]:
@@ -82,7 +78,10 @@ def main() -> int:
     todo = [r for r in rows if r["_key"] not in cached]
     print(f"{len(rows)} chunks, {len(todo)} to embed")
 
-    key = api_key()
+    try:
+        key = resolve_key()
+    except KeyError as exc:
+        raise SystemExit(str(exc))
     for start in range(0, len(todo), BATCH):
         batch = todo[start:start + BATCH]
         for row, vector in zip(batch, embed_batch([r["text"] for r in batch], key)):

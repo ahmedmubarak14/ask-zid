@@ -42,6 +42,17 @@
   .meta{color:var(--muted);font-size:12px;margin-bottom:4px}
   .snippet{white-space:pre-wrap;color:var(--muted);max-height:8.5em;overflow:auto}
   .empty{color:var(--muted)}
+  .keybar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;margin-bottom:16px}
+  .keybar input{flex:1 1 300px;padding:10px 12px;border:1px solid var(--line);
+    border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;
+    direction:ltr;text-align:left}
+  .keybar button{padding:10px 16px;font-size:14px}
+  .keybar .note{flex-basis:100%;color:var(--muted);font-size:12px}
+  .ok{color:var(--muted);font-size:13px}
+  .linkbtn{background:none;border:0;color:var(--accent);cursor:pointer;
+    font:inherit;padding:0;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -50,6 +61,17 @@
   <span class="sub">نسخة اختبار داخلية — الإجابات من مصادر زد فقط</span>
 </header>
 <main>
+  <div class="keybar" id="keybar">
+    <input type="password" id="key" placeholder="OpenAI API key — sk-…" autocomplete="off" spellcheck="false">
+    <button id="savekey" type="button">حفظ</button>
+    <div class="note">يُحفظ في متصفحك فقط (localStorage) ويُرسل مع كل سؤال إلى الخادم المحلي. لا يُسجَّل ولا يُحفظ على القرص.</div>
+  </div>
+  <div class="keybar" id="keyok" hidden>
+    <span class="ok">🔑 المفتاح محفوظ في هذا المتصفح</span>
+    <button class="linkbtn" id="changekey" type="button">تغيير</button>
+    <button class="linkbtn" id="clearkey" type="button">حذف</button>
+  </div>
+
   <form id="f">
     <input type="text" id="q" placeholder="اكتب سؤالك… مثال: كم رسوم المعاملات على مدى؟" autocomplete="off">
     <select id="country" title="السوق">
@@ -68,7 +90,30 @@
 <script>
 const f=document.getElementById('f'),q=document.getElementById('q'),
       go=document.getElementById('go'),out=document.getElementById('out'),
-      country=document.getElementById('country');
+      country=document.getElementById('country'),
+      keyInput=document.getElementById('key'),keybar=document.getElementById('keybar'),
+      keyok=document.getElementById('keyok');
+const KEY='askzid_openai_key';
+
+// localStorage throws in some privacy modes; the page must still work, just
+// without remembering the key between reloads.
+let memoryKey='';
+function readKey(){ try{ return localStorage.getItem(KEY)||memoryKey; }catch(e){ return memoryKey; } }
+function writeKey(v){ memoryKey=v; try{ localStorage.setItem(KEY,v); }catch(e){} }
+function dropKey(){ memoryKey=''; try{ localStorage.removeItem(KEY); }catch(e){} }
+function renderKey(){
+  const has=!!readKey();
+  keybar.hidden=has; keyok.hidden=!has;
+}
+document.getElementById('savekey').onclick=()=>{
+  const v=keyInput.value.trim();
+  if(!v) return;
+  writeKey(v); keyInput.value=''; renderKey();
+};
+keyInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();document.getElementById('savekey').click();} });
+document.getElementById('changekey').onclick=()=>{ keybar.hidden=false; keyok.hidden=true; keyInput.focus(); };
+document.getElementById('clearkey').onclick=()=>{ dropKey(); renderKey(); };
+renderKey();
 const esc=s=>(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
 f.addEventListener('submit', async e=>{
@@ -76,9 +121,16 @@ f.addEventListener('submit', async e=>{
   const question=q.value.trim(); if(!question) return;
   go.disabled=true; out.innerHTML='<div class="card empty">…جاري البحث</div>';
   try{
-    const r=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+    const headers={'Content-Type':'application/json'};
+    const k=readKey(); if(k) headers['X-OpenAI-Key']=k;
+    const r=await fetch('/ask',{method:'POST',headers,
       body:JSON.stringify({question,country:country.value})});
     const d=await r.json();
+    if(d.error){
+      out.innerHTML='<div class="card"><div class="flag">⚠ '+esc(d.error)+'</div></div>';
+      if(/key/i.test(d.error)){ keybar.hidden=false; keyok.hidden=true; }
+      go.disabled=false; return;
+    }
     let html='<div class="card"><div class="answer">'+esc(d.answer)+'</div>';
     if(!d.grounded) html+='<div class="flag">⚠ لم يستشهد بأي مصدر — تحقق قبل الاعتماد عليها</div>';
     if(d.citations?.length){

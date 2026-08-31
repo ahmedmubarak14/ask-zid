@@ -12,10 +12,15 @@ is the signal that retrieval missed, not that the model knew better.
 
 import json
 import os
+import pathlib
 import re
+import sys
 import time
 import urllib.error
 import urllib.request
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from config import resolve_key
 
 MODEL = os.environ.get("ASK_ZID_MODEL", "gpt-5-mini")
 ENDPOINT = "https://api.openai.com/v1/chat/completions"
@@ -50,13 +55,6 @@ Rules, in order of priority:
 
 Be brief and concrete. Lead with the answer. Prices, timelines and package
 names are what people are asking for — give them, with citations."""
-
-
-def api_key() -> str:
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        raise SystemExit("OPENAI_API_KEY is not set")
-    return key
 
 
 def format_passages(passages: list[dict]) -> str:
@@ -96,7 +94,7 @@ def call(messages: list[dict], key: str, retries: int = 4) -> str:
     return "[error] exhausted retries"
 
 
-def answer(question: str, passages: list[dict]) -> dict:
+def answer(question: str, passages: list[dict], key: str | None = None) -> dict:
     if not passages:
         return {"answer": "لا توجد لدي معلومات كافية للإجابة على هذا السؤال.",
                 "citations": [], "grounded": False}
@@ -105,7 +103,7 @@ def answer(question: str, passages: list[dict]) -> dict:
         [{"role": "system", "content": SYSTEM},
          {"role": "user",
           "content": f"{format_passages(passages)}\n\n---\n\nالسؤال / Question: {question}"}],
-        api_key(),
+        resolve_key(key),
     )
     cited = sorted({int(n) for n in re.findall(r"\[(\d+)\]", reply)
                     if 1 <= int(n) <= len(passages)})

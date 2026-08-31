@@ -53,10 +53,17 @@ pip install -r ingest/requirements.txt -r service/requirements.txt
 make crawl PDFS=/path/to/pdfs   # fetch all three sources
 make corpus                     # chunk them into data/corpus.jsonl
 
-export OPENAI_API_KEY=sk-...    # or put it in a .env you never commit
+export OPENAI_API_KEY=sk-...    # or put it in a .env (git-ignored)
 make embed                      # ~1 cent for this corpus
 make serve                      # http://localhost:8000
 ```
+
+The key can also be pasted into the page itself, which is usually easier
+than exporting a variable before every run. It is kept in that browser's
+`localStorage`, sent with each question to your local server, and used and
+discarded — never logged, never written to disk by the server, never echoed
+back in a response. `make embed` is a command-line step, so that one still
+needs the environment variable or a `.env` file.
 
 The test UI shows the retrieved passages under every answer. That matters
 more than it looks: when an answer is wrong, the passages say whether

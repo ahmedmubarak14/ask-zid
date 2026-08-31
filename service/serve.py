@@ -6,35 +6,40 @@ a deployment pipeline are all things to add once that question is settled,
 and every one of them added now is something to debug instead of the answers.
 
 Usage:
-    OPENAI_API_KEY=... python serve.py --corpus ../data/corpus.jsonl \\
-                                       --vectors ../data/vectors.npz
+    python serve.py --corpus ../data/corpus.jsonl --vectors ../data/vectors.npz
     open http://localhost:8000
+
+The key can be pasted into the page instead of exported; it is sent per
+request, kept in the browser only, and never written to disk by the server.
 """
 
 import argparse
 import json
 import pathlib
 import sys
+import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import numpy as np
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import answer as answer_mod
+from config import resolve_key
 from search import Index
 
 HERE = pathlib.Path(__file__).parent
 INDEX: Index | None = None
 
 
-def embed_query(text: str) -> np.ndarray:
+def embed_query(text: str, key: str) -> np.ndarray:
     """One embedding call for the question, with the same model as the corpus."""
     request = urllib.request.Request(
         "https://api.openai.com/v1/embeddings",
         data=json.dumps({"model": "text-embedding-3-small", "input": text}).encode(),
-        headers={"Authorization": f"Bearer {answer_mod.api_key()}",
+        headers={"Authorization": f"Bearer {key}",
                  "Content-Type": "application/json"},
     )
     with urllib.request.urlopen(request, timeout=60) as response:
@@ -71,9 +76,26 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, b'{"error":"empty question"}', "application/json")
             return
 
+        # The key may arrive from the UI field, the environment, or a .env.
+        # It is used and discarded - never logged, stored, or echoed back.
+        try:
+            key = resolve_key(self.headers.get("X-OpenAI-Key"))
+        except KeyError as exc:
+            # KeyError's str() wraps the message in quotes; args[0] is clean.
+            self._send(400, json.dumps({"error": exc.args[0]}).encode(),
+                       "application/json; charset=utf-8")
+            return
+
         country = request.get("country") or None
-        passages = INDEX.search(question, embed_query(question), k=6, country=country)
-        result = answer_mod.answer(question, passages)
+        try:
+            passages = INDEX.search(question, embed_query(question, key),
+                                    k=6, country=country)
+        except urllib.error.HTTPError as exc:
+            detail = "invalid API key" if exc.code == 401 else f"HTTP {exc.code}"
+            self._send(400, json.dumps({"error": f"embedding failed: {detail}"}).encode(),
+                       "application/json; charset=utf-8")
+            return
+        result = answer_mod.answer(question, passages, key)
         # Returned so the test UI can show what was retrieved. When an answer
         # is wrong, the passages say whether retrieval or the model failed —
         # which is the only way to know what to fix.
