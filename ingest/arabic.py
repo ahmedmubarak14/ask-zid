@@ -18,6 +18,8 @@ frequency list and reports a confidence, so the caller can route anything
 doubtful to a human instead of shipping it.
 """
 
+from __future__ import annotations
+
 import re
 import unicodedata
 

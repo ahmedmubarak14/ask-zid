@@ -67,7 +67,8 @@ command line; it reads `OPENAI_API_KEY` from the environment or a `.env`.
 Run the lines one at a time rather than pasting the block — a failure
 partway through otherwise scrolls past unnoticed.
 
-On macOS use `python3 -m pip`, not `pip`, which is usually absent. `make`
+Needs **Python 3.9 or newer** — that is what macOS ships, and what the code
+is tested against. On macOS use `python3 -m pip`, not `pip`, which is usually absent. `make`
 needs the Xcode command line tools (`xcode-select --install`); without them
 each target is a single command you can run by hand — see the Makefile.
 If `python3` is not on your PATH, pass its location: `make crawl PY=/usr/bin/python3`.
@@ -75,7 +76,8 @@ If `python3` is not on your PATH, pass its location: `make crawl PY=/usr/bin/pyt
 Run the lines one at a time rather than pasting the block — a failure
 partway through otherwise scrolls past unnoticed.
 
-On macOS use `python3 -m pip`, not `pip`, which is usually absent. `make`
+Needs **Python 3.9 or newer** — that is what macOS ships, and what the code
+is tested against. On macOS use `python3 -m pip`, not `pip`, which is usually absent. `make`
 needs the Xcode command line tools (`xcode-select --install`); without them
 each target is a single command you can run by hand — see the Makefile.
 If `python3` is not on your PATH, pass its location: `make crawl PY=/usr/bin/python3`.

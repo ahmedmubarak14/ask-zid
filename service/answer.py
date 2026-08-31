@@ -10,6 +10,8 @@ an unsupported claim visible instead of plausible — an answer with no citation
 is the signal that retrieval missed, not that the model knew better.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import pathlib

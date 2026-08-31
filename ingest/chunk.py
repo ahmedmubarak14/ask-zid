@@ -12,6 +12,8 @@ Usage:
     python chunk.py help_center.jsonl marketing.jsonl --out corpus.jsonl
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json

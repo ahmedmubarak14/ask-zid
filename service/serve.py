@@ -13,6 +13,8 @@ The key can be pasted into the page instead of exported; it is sent per
 request, kept in the browser only, and never written to disk by the server.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import pathlib

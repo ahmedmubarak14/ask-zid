@@ -25,6 +25,8 @@ Usage:
     python fetch_help_center.py --out help_center.jsonl
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json

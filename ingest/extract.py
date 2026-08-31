@@ -17,6 +17,8 @@ Usage:
     python extract.py <pdf-dir> --report        # human review, no output file
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json

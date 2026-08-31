@@ -17,6 +17,8 @@ product over all of them takes milliseconds — pgvector earns its place at
 production scale, not here.
 """
 
+from __future__ import annotations
+
 import json
 import pathlib
 import re

@@ -12,6 +12,8 @@ Usage:
     OPENAI_API_KEY=... python embed.py corpus.jsonl --out vectors.npz
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json

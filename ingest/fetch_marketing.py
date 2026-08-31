@@ -21,6 +21,8 @@ Usage:
     python fetch_marketing.py --only pricing,egypt --report
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
