@@ -380,7 +380,11 @@ def build(url: str, html: str) -> list[dict]:
     if len(body) < 200:
         return []
     records = [_record(url, title_for(html, url), body)]
-    plans = pricing_plans(html)
+    # Only from the Saudi pricing page. Every market page renders the same
+    # component, so emitting one per page produced five dense price blocks
+    # tagged EG, AE, KW, OM and SY — each one Saudi figures wearing another
+    # market's label, and each highly retrievable under that market's filter.
+    plans = pricing_plans(html) if country_for(url) == "SA" else ""
     if plans:
         records.append(_record(url, "أسعار باقات زد — سعر كل باقة اشتراك",
                                plans, suffix="#pricing"))

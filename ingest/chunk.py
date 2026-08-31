@@ -165,7 +165,8 @@ def main() -> int:
     for path in args.inputs:
         before = len(records)
         docs = 0
-        for line in path.open(encoding="utf-8"):
+        with path.open(encoding="utf-8") as handle:
+          for line in handle:
             docs += 1
             doc = json.loads(line)
             pieces = chunk_text(doc["text"], doc.get("doc_title", ""))

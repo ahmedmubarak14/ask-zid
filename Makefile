@@ -11,6 +11,9 @@
 PY   ?= python3
 DATA := data
 PDFS ?=
+# A tilde inside double quotes is literal to the shell, so "~/zid-pdfs" never
+# matches a real directory however carefully it was typed. Expand it here.
+PDFS_DIR := $(patsubst ~/%,$(HOME)/%,$(PDFS))
 
 $(DATA):
 	mkdir -p $(DATA)
@@ -31,14 +34,13 @@ marketing: | $(DATA)
 
 # A PDFS path that does not exist is a typo, not a decision to skip PDFs.
 pdfs: | $(DATA)
-	@if [ -z "$(PDFS)" ]; then \
+	@if [ -z "$(PDFS_DIR)" ]; then \
 		echo "no PDF folder given (PDFS=...), skipping PDFs"; \
-	elif [ ! -d "$(PDFS)" ]; then \
-		echo "ERROR: PDFS=$(PDFS) is not a directory."; \
-		echo "       Give the real path to your PDFs, e.g. PDFS=~/Downloads/zid-pdfs"; \
+	elif [ ! -d "$(PDFS_DIR)" ]; then \
+		echo "ERROR: PDFS=$(PDFS) resolved to $(PDFS_DIR), which is not a directory."; \
 		exit 1; \
 	else \
-		cd ingest && $(PY) extract.py "$(PDFS)" --out ../$(DATA)/pdfs.jsonl; \
+		cd ingest && $(PY) extract.py "$(PDFS_DIR)" --out ../$(DATA)/pdfs.jsonl; \
 	fi
 
 # Hand-maintained answers that exist on no page. Runs first: it is the only

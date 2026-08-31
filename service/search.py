@@ -65,15 +65,23 @@ class Index:
 
     def __init__(self, corpus_path: pathlib.Path,
                  vectors_path: pathlib.Path | None = None):
-        self.rows = [json.loads(line) for line in corpus_path.open(encoding="utf-8")]
+        with corpus_path.open(encoding="utf-8") as handle:
+            self.rows = [json.loads(line) for line in handle]
         self.n = len(self.rows)
         self.vectors: np.ndarray | None = None
         if vectors_path and vectors_path.exists():
             store = np.load(vectors_path, allow_pickle=True)
             vectors = store["vectors"]
-            # A stale vectors file is worse than none: it would silently
-            # answer from the wrong chunks. Mismatched length means rebuild.
-            if len(vectors) == self.n:
+            # Equal length does not prove these vectors describe this corpus —
+            # two different crawls can produce the same count — and answering
+            # from vectors belonging to other chunks is silent and total. The
+            # ids are compared, not just how many there are.
+            ids = store["ids"].tolist() if "ids" in store else None
+            mine = [r["id"] for r in self.rows]
+            if ids is not None and ids != mine:
+                print("warning: data/vectors.npz was built from a different "
+                      "corpus; rebuild the index")
+            elif len(vectors) == self.n:
                 vectors, broken = sanitise(vectors)
                 if broken:
                     print(f"warning: {broken} vector(s) were not finite and "
@@ -93,6 +101,8 @@ class Index:
             for token in counts:
                 self.df[token] = self.df.get(token, 0) + 1
         self.avg_len = (sum(self.lengths) / len(self.lengths)) if self.lengths else 1.0
+        self._warned_query = False
+        self._warned_sims = False
 
     @property
     def ready(self) -> bool:
@@ -138,7 +148,26 @@ class Index:
 
     def vector_scores(self, query_vector: np.ndarray,
                       mask: np.ndarray) -> list[tuple[int, float]]:
-        sims = self.vectors @ query_vector
+        # numpy reports a non-finite dot product as a RuntimeWarning and
+        # carries on ranking by the result, so a bad vector degrades answers
+        # instead of failing. Both operands are checked, the offender is
+        # named once, and the comparison proceeds on cleaned values.
+        query = np.asarray(query_vector, dtype=np.float32).ravel()
+        if not np.isfinite(query).all():
+            if not self._warned_query:
+                print("warning: the question's embedding was not finite; "
+                      "check the embedding response")
+                self._warned_query = True
+            query = np.nan_to_num(query, nan=0.0, posinf=0.0, neginf=0.0)
+        with np.errstate(all="ignore"):
+            sims = self.vectors @ query
+        if not np.isfinite(sims).all():
+            if not self._warned_sims:
+                bad = int((~np.isfinite(sims)).sum())
+                print(f"warning: {bad} similarity score(s) were not finite; "
+                      f"rebuild the index (data/vectors.npz) to fix")
+                self._warned_sims = True
+            sims = np.nan_to_num(sims, nan=-1.0, posinf=-1.0, neginf=-1.0)
         sims[~mask] = -np.inf
         order = np.argsort(-sims)[:100]
         return [(int(i), float(sims[i])) for i in order if np.isfinite(sims[i])]

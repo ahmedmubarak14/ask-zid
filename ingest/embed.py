@@ -67,7 +67,8 @@ def main() -> int:
                         help="reuse vectors from a previous run (default: --out)")
     args = parser.parse_args()
 
-    rows = [json.loads(line) for line in args.corpus.open(encoding="utf-8")]
+    with args.corpus.open(encoding="utf-8") as handle:
+        rows = [json.loads(line) for line in handle]
     for row in rows:
         row["_key"] = hashlib.sha256(row["text"].encode()).hexdigest()[:16]
 
