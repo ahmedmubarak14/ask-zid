@@ -17,13 +17,13 @@ That choice is measured, not assumed. The corpus was sized before committing:
 
 | Source | Items | Tokens |
 |---|---|---|
-| help.zid.sa | 531 articles | ~238,000 |
-| Knowledge-base PDFs | 109 chunks | ~22,000 |
-| Marketing site, pricing, country pages | not yet ingested | — |
-| **Total so far** | | **~260,000** |
+| help.zid.sa | 531 articles | 246,442 |
+| zid.sa + Syria site | 93 pages | 117,195 |
+| Knowledge-base PDFs | 109 chunks | 22,273 |
+| **Total** | **733** | **385,910** |
 
-At 22K tokens the whole corpus would fit in a cached prompt and retrieval
-would be pointless overhead. At 260K it does not: per-question cost rises
+At the 22K tokens of PDFs alone, the whole corpus would fit in a cached
+prompt and retrieval would be pointless overhead. At 386K it does not: per-question cost rises
 sharply and, more importantly, answer quality falls when the relevant
 passage is buried in a quarter of a million tokens of unrelated context.
 Retrieving a few thousand relevant tokens is both cheaper and better.
@@ -35,7 +35,7 @@ instantly, and fine-tuning cannot produce citations.
 
 - [x] PDF ingestion with Arabic extraction repair (`ingest/extract.py`)
 - [x] Help centre ingestion (`ingest/fetch_help_center.py`)
-- [ ] Marketing site, pricing and country pages
+- [x] Marketing site, pricing and country pages (`ingest/fetch_marketing.py`)
 - [ ] Embedding + hybrid retrieval (vector + full-text)
 - [ ] Answer service with citations and grounded refusal
 - [ ] Embeddable widget for Sales Hunter

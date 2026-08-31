@@ -124,18 +124,33 @@ Deduplication is conservative — only immediately repeated lines and blocks
 are collapsed, because a "drop anything seen before" rule would delete real
 price rows where one figure legitimately appears against several packages.
 
+### Pages that need a browser
+
+Twelve zid.sa pages are client-rendered and yield nothing over plain HTTP —
+`/zidx25` serves 220 KB of HTML and 127 characters of text. Among them are
+`/about`, `/contact` and `/legal`; the rest are interactive tools
+(`free-tools/*`) and campaign pages with little to answer from.
+
+`fetch_marketing.py` names them in its summary rather than folding them into
+a count, because a page yielding nothing is almost always client-rendered
+rather than empty, and a bare number hides which parts of the site the
+assistant has no answer for. Recovering them needs a headless browser
+(Playwright), which the ingester does not require for anything else.
+
 ## Corpus
 
 | Source | Items | Tokens |
 |---|---|---|
-| PDFs | 8 files -> 109 chunks | ~22,000 |
-| help.zid.sa | 531 articles | ~246,000 |
+| PDFs | 8 files -> 109 chunks | 22,273 |
+| help.zid.sa | 531 articles | 246,442 |
+| zid.sa + Syria site | 93 pages | 117,195 |
+| **Total** | **733** | **385,910** |
 
 Counted with the GPT-5 tokenizer, not estimated from character counts —
 Arabic runs about 0.295 tokens per character against roughly 0.25 for
 English, so a chars/4 rule of thumb understates it by a third.
 
 At the PDF corpus alone, holding everything in a cached prompt would have
-beaten retrieval on both cost and reliability. The help centre settles it
-the other way: at a quarter of a million tokens, retrieval is the right
+beaten retrieval on both cost and reliability. The full corpus settles it
+the other way: at nearly 400,000 tokens, retrieval is the right
 architecture.

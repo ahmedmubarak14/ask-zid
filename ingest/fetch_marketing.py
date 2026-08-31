@@ -227,7 +227,7 @@ def main() -> int:
         wanted = [w.strip() for w in args.only.split(",") if w.strip()]
         urls = [u for u in urls if any(w in u for w in wanted)]
 
-    records, skipped = [], 0
+    records, skipped = [], []
     for url in urls:
         try:
             record = build(url, fetch(url))
@@ -235,7 +235,7 @@ def main() -> int:
             print(f"  ERROR {url}: {type(exc).__name__}")
             continue
         if record is None:
-            skipped += 1
+            skipped.append(url)
         else:
             records.append(record)
             if args.report:
@@ -245,7 +245,15 @@ def main() -> int:
         time.sleep(DELAY)
 
     total = sum(r["chars"] for r in records)
-    print(f"\n{len(records)} pages, {total:,} chars ({skipped} too short to keep)")
+    print(f"\n{len(records)} pages, {total:,} chars")
+    if skipped:
+        # Named, not just counted. A page that yields nothing is almost always
+        # client-rendered rather than genuinely empty, and a bare count hides
+        # which parts of the site the assistant will have no answer for.
+        print(f"\n{len(skipped)} page(s) yielded no text - client-rendered, "
+              f"and only reachable with a headless browser:")
+        for url in skipped:
+            print(f"  {url}")
     by_country: dict[str, int] = {}
     for r in records:
         by_country[r["country"]] = by_country.get(r["country"], 0) + 1
