@@ -86,12 +86,50 @@ One JSON object per line:
 - Scanned or image-only PDFs are not handled — none in the current set need
   OCR, but a new source might.
 
+## Sources
+
+| Script | Source | Notes |
+|---|---|---|
+| `extract.py` | knowledge-base PDFs | needs the Arabic repairs above |
+| `fetch_help_center.py` | help.zid.sa | WordPress REST + HTML fallback |
+| `fetch_marketing.py` | zid.sa + zid.synapze.co | server-rendered, country-tagged |
+
+### Marketing pages
+
+Two things the sitemap does not tell you, both established by testing:
+
+* **The market pages are unlisted.** `/ar/egypt/`, `/ar/uae/`, `/ar/kuwait/`
+  and `/ar/oman/` are live and linked from the site but absent from
+  `sitemap.xml`. Crawling the sitemap alone drops every market page except
+  Saudi — precisely the content the `country` tag exists to separate. They
+  are added explicitly, along with `zid.synapze.co`, which is Zid's Syria
+  site on its own host.
+
+* **Non-Saudi pages show Saudi prices.** The market pages render a shared,
+  unlocalised pricing component: the Kuwait page displays "990 تدفع سنوياً"
+  — the Saudi riyal figure — with no currency named. Meanwhile the Egypt
+  page has no pricing section at all; its `300`/`500`/`1000` figures are
+  order-volume brackets in a lead-qualification quiz.
+
+  Whether Zid actually charges those amounts per market is a business fact
+  this ingester cannot verify, so such pages carry `pricing_unverified:
+  true` rather than being silently trusted. The answer service should
+  decline to quote a price from a flagged chunk.
+
+Pages under `/switchers` carry `competitive: true`. They compare Zid to
+named competitors, which is fine internally and a deliberate decision for
+the external launch.
+
+Deduplication is conservative — only immediately repeated lines and blocks
+are collapsed, because a "drop anything seen before" rule would delete real
+price rows where one figure legitimately appears against several packages.
+
 ## Corpus
 
 | Source | Items | Tokens |
 |---|---|---|
 | PDFs | 8 files -> 109 chunks | ~22,000 |
-| help.zid.sa | 531 articles | ~238,000 |
+| help.zid.sa | 531 articles | ~246,000 |
 
 Counted with the GPT-5 tokenizer, not estimated from character counts —
 Arabic runs about 0.295 tokens per character against roughly 0.25 for
@@ -99,4 +137,5 @@ English, so a chars/4 rule of thumb understates it by a third.
 
 At the PDF corpus alone, holding everything in a cached prompt would have
 beaten retrieval on both cost and reliability. The help centre settles it
-the other way: at ~260,000 tokens, retrieval is the right architecture.
+the other way: at a quarter of a million tokens, retrieval is the right
+architecture.
