@@ -206,6 +206,74 @@ def _rsc_strings(html: str) -> list[str]:
     return out
 
 
+PLAN_FIELDS = ("billingCycle", "packagePriceMonthly", "packagePriceAnnual",
+               "totalCost", "packageDescription")
+
+
+def _rsc_blob(html: str) -> str:
+    parts = []
+    for match in _RSC.finditer(html):
+        try:
+            parts.append(json.loads(match.group(1)))
+        except ValueError:
+            continue
+    return "".join(parts)
+
+
+def _field(segment: str, key: str) -> str | None:
+    match = re.search(rf'"{key}":\s*(?:"((?:[^"\\]|\\.)*)"|null)', segment)
+    return match.group(1).strip() if match and match.group(1) else None
+
+
+def pricing_plans(html: str) -> str:
+    """The subscription tiers and their prices, from the page's own JSON.
+
+    The rendered markup shows one tier at a time and the loose strings in the
+    payload keep "99" apart from "ريال شهرياً", so reading text alone finds
+    package names with no prices beside them — which reads as "Zid does not
+    publish its prices" when in fact every figure is present, as structured
+    fields on a pricingPlan object.
+
+    Emitted as one labelled block per tier so a chunk of it answers "what
+    does X cost" without needing the rest of the page.
+    """
+    blob = _rsc_blob(html)
+    if '"packageName"' not in blob:
+        return ""
+    lines, seen = [], set()
+    for match in re.finditer(r'"packageName":"((?:[^"\\]|\\.)*)"', blob):
+        # Each tier appears twice, once per language. The language marker
+        # that belongs to this one is the first that follows it; searching a
+        # window instead picks up the neighbouring translation's marker and
+        # lets every English tier through.
+        lang = re.search(r'"languages_id":\{"name":"(\w+)"\}',
+                         blob[match.start():match.start() + 1600])
+        if not lang or lang.group(1) != "ar":
+            continue
+        name = match.group(1)
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        segment = blob[max(0, match.start() - 1200):match.start() + 1200]
+        plan = {key: _field(segment, key) for key in PLAN_FIELDS}
+        bits = [f"باقة {name}:"]
+        monthly, annual = plan["packagePriceMonthly"], plan["packagePriceAnnual"]
+        if monthly:
+            bits.append(f"{monthly} {plan['billingCycle'] or 'ريال شهرياً'}")
+            if annual:
+                bits.append(f"وعند الدفع السنوي {annual}")
+        elif annual:
+            # Free and enterprise tiers carry only this field, and it holds a
+            # phrase ("مجاناً", "قيمة مخصصة") rather than a number.
+            bits.append(f"{annual} {plan['billingCycle'] or ''}".strip())
+        if plan["totalCost"]:
+            bits.append(f"({plan['totalCost']})")
+        if plan["packageDescription"]:
+            bits.append(f"— {plan['packageDescription']}")
+        lines.append(" ".join(bits))
+    return ("أسعار باقات زد:\n" + "\n".join(lines)) if lines else ""
+
+
 def chrome_strings() -> set[str]:
     """Strings common to every page, learned from a URL that does not exist.
 
@@ -265,6 +333,10 @@ def page_text(html: str) -> str:
     # content a reader sees but a parser of the markup alone never gets.
     # Reading order there is approximate, so it is appended rather than
     # interleaved.
+    plans = pricing_plans(html)
+    if plans:
+        lines = lines + plans.split("\n")
+
     have = {l.strip() for l in lines}
     chrome = chrome_strings()
     extra = [s for s in _rsc_strings(html) if s not in chrome and s.strip() not in have]
