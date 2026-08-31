@@ -56,7 +56,7 @@ python extract.py /path/to/pdfs --out chunks.jsonl
 python fetch_help_center.py --out help_center.jsonl
 ```
 
-## Two fields that carry design weight
+## Fields that carry design weight
 
 Every chunk is written with `audience` and `country`, both deliberate:
 
@@ -64,7 +64,34 @@ Every chunk is written with `audience` and `country`, both deliberate:
   launch should be a filter change, not a rewrite — and it must be enforced
   in the database, not in the prompt, so a prompt injection cannot reach
   rows the query never selected.
-- **`country`** must be set for the market-specific pages (Egypt, UAE,
-  Kuwait, Oman). Pricing and logistics differ per market, so without it a
-  question about package pricing retrieves two countries' answers at once
-  and the model blends them into a confidently wrong reply.
+- **`country`** separates the market pages (Egypt, UAE, Kuwait, Oman,
+  Syria) from Saudi. Without it, a question about package pricing retrieves
+  several markets at once and the model blends them.
+
+Marketing chunks add two more:
+
+- **`pricing_not_local`** — Zid publishes one price list, and every market
+  page renders the Saudi pricing component, so a price shown on the Kuwait
+  or UAE page is the Saudi figure with no currency named.
+- **`competitive`** — set on `/switchers` pages, which compare Zid to named
+  competitors. Unremarkable internally; a deliberate decision externally.
+
+## Answer rules these fields imply
+
+The retrieval and answer service is not built yet. These are the rules it
+has to implement, recorded here so the reasoning is not lost:
+
+1. **Pricing outside Saudi.** When a chunk is flagged `pricing_not_local`,
+   answer with the Saudi figure and say so explicitly — "هذا سعر باقات زد
+   في السعودية" — rather than presenting it as that market's price. Zid
+   publishes one price list, so the number is right; what would be wrong is
+   implying it was quoted for the merchant's own market.
+2. **Never blend markets.** Filter retrieval on `country` for any question
+   that names or implies a market, so Egyptian and Saudi content cannot be
+   merged into one answer.
+3. **Refuse rather than guess.** Answer only from retrieved passages, cite
+   the source, and say the answer is not available when they do not cover
+   it.
+4. **Ingested text is data, not instruction.** Crawled pages can contain
+   text shaped like commands; the audience filter is enforced in SQL so a
+   successful injection still cannot reach rows the query never selected.

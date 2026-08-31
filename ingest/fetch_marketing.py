@@ -65,10 +65,12 @@ COUNTRY_BY_PATH = {
 # no pricing section at all; its 300/500/1000 figures are order-volume
 # brackets from a lead-qualification quiz.)
 #
-# So a price on a non-Saudi page is Saudi pricing, not that market's. These
-# chunks are flagged rather than dropped - the pages carry real local content
-# worth retrieving - and the answer service must refuse to quote a price from
-# a flagged chunk, pointing at the market's own price list instead.
+# So a price on a non-Saudi page is Saudi pricing, not that market's. Zid
+# publishes one price list for every market, so the figure itself is correct;
+# what would be wrong is presenting it as the merchant's local price. These
+# chunks are therefore flagged rather than dropped - the pages carry real
+# local content worth retrieving - and the answer service quotes the figure
+# while stating plainly that it is the Saudi price list.
 BARE_PRICE = re.compile(r"\b\d{2,5}\s*(?:تدفع|/\s*شهر|شهري|سنوي)")
 LOCAL_CURRENCY = re.compile(r"(جنيه|درهم|دينار|ريال عماني|\$|USD|EGP|AED|KWD|OMR)")
 
