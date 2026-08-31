@@ -86,12 +86,17 @@ One JSON object per line:
 - Scanned or image-only PDFs are not handled — none in the current set need
   OCR, but a new source might.
 
-## Current corpus
+## Corpus
 
-8 PDFs → **109 chunks, ~23,000 tokens** (51 of them tables).
+| Source | Items | Tokens |
+|---|---|---|
+| PDFs | 8 files -> 109 chunks | ~22,000 |
+| help.zid.sa | 531 articles | ~238,000 |
 
-That is small enough to fit in a single prompt, which is worth knowing before
-building a vector database: for this set alone, putting everything in a cached
-system prompt costs a fraction of a cent per question and cannot fail to
-retrieve. Retrieval starts earning its complexity once help.zid.sa and the
-marketing pages are added.
+Counted with the GPT-5 tokenizer, not estimated from character counts —
+Arabic runs about 0.295 tokens per character against roughly 0.25 for
+English, so a chars/4 rule of thumb understates it by a third.
+
+At the PDF corpus alone, holding everything in a cached prompt would have
+beaten retrieval on both cost and reliability. The help centre settles it
+the other way: at ~260,000 tokens, retrieval is the right architecture.
