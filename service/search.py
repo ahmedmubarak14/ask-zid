@@ -30,6 +30,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from vectors import sanitise
 
 RRF_K = 60
+BM25_K1 = 1.5
+BM25_B = 0.75
 ARABIC_PREFIXES = ("ال", "بال", "كال", "فال", "وال", "لل")
 
 
@@ -78,13 +80,19 @@ class Index:
                           f"have been zeroed; rebuild the index to fix")
                 self.vectors = vectors
 
-        self.tokens = [set(tokenise(r["text"])) for r in self.rows]
-        # Rarer words should count for more; without it every chunk containing
-        # "زد" scores alike and the signal is lost in the most common term.
+        # BM25 needs term frequencies and document lengths, not just presence.
+        self.tokens: list[dict[str, int]] = []
+        self.lengths: list[int] = []
         self.df: dict[str, int] = {}
-        for token_set in self.tokens:
-            for token in token_set:
+        for row in self.rows:
+            counts: dict[str, int] = {}
+            for token in tokenise(row["text"]):
+                counts[token] = counts.get(token, 0) + 1
+            self.tokens.append(counts)
+            self.lengths.append(sum(counts.values()))
+            for token in counts:
                 self.df[token] = self.df.get(token, 0) + 1
+        self.avg_len = (sum(self.lengths) / len(self.lengths)) if self.lengths else 1.0
 
     @property
     def ready(self) -> bool:
@@ -104,14 +112,28 @@ class Index:
         return mask
 
     def keyword_scores(self, query: str, mask: np.ndarray) -> list[tuple[int, float]]:
-        terms = set(tokenise(query))
+        """BM25, which is length-normalised — and that is the whole point.
+
+        Summing matched terms without normalising rewards long chunks: a
+        700-token page mentioning "باقة" and "النمو" in passing outscores a
+        145-token block that is nothing but the price table, so a question
+        about what a package costs never reaches the answer.
+        """
+        terms = [t for t in tokenise(query) if t in self.df]
         scored = []
         for i in np.flatnonzero(mask):
-            overlap = terms & self.tokens[i]
-            if not overlap:
-                continue
-            score = sum(np.log(1 + self.n / self.df[t]) for t in overlap)
-            scored.append((int(i), float(score)))
+            counts = self.tokens[i]
+            length = self.lengths[i] or 1
+            score = 0.0
+            for term in terms:
+                freq = counts.get(term, 0)
+                if not freq:
+                    continue
+                idf = np.log(1 + (self.n - self.df[term] + 0.5) / (self.df[term] + 0.5))
+                norm = freq + BM25_K1 * (1 - BM25_B + BM25_B * length / self.avg_len)
+                score += idf * (freq * (BM25_K1 + 1)) / norm
+            if score:
+                scored.append((int(i), float(score)))
         return sorted(scored, key=lambda x: -x[1])
 
     def vector_scores(self, query_vector: np.ndarray,

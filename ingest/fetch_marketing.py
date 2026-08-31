@@ -256,7 +256,10 @@ def pricing_plans(html: str) -> str:
         seen.add(name)
         segment = blob[max(0, match.start() - 1200):match.start() + 1200]
         plan = {key: _field(segment, key) for key in PLAN_FIELDS}
-        bits = [f"باقة {name}:"]
+        # Phrased as the question is asked. Arabic broken plurals defeat
+        # prefix-stripping — "سعر" and "أسعار" are different tokens — so a
+        # table headed only "أسعار" never matches "كم سعر باقة النمو".
+        bits = [f"سعر باقة {name} (تكلفة الاشتراك):"]
         monthly, annual = plan["packagePriceMonthly"], plan["packagePriceAnnual"]
         if monthly:
             bits.append(f"{monthly} {plan['billingCycle'] or 'ريال شهرياً'}")
@@ -271,7 +274,8 @@ def pricing_plans(html: str) -> str:
         if plan["packageDescription"]:
             bits.append(f"— {plan['packageDescription']}")
         lines.append(" ".join(bits))
-    return ("أسعار باقات زد:\n" + "\n".join(lines)) if lines else ""
+    header = "أسعار باقات زد — سعر وتكلفة اشتراك كل باقة:"
+    return (header + "\n" + "\n".join(lines)) if lines else ""
 
 
 def chrome_strings() -> set[str]:
@@ -363,14 +367,30 @@ def title_for(html: str, url: str) -> str:
     return url.rstrip("/").rsplit("/", 1)[-1]
 
 
-def build(url: str, html: str) -> dict | None:
+def build(url: str, html: str) -> list[dict]:
+    """Records for one page: the page itself, plus its price table if it has one.
+
+    The price table is emitted separately rather than left inside the page.
+    Merged into 9,800 characters of marketing copy it lands mid-chunk, where
+    the surrounding text dominates the embedding and a question about what a
+    package costs never retrieves it — the failure looks like the prices are
+    missing when they are present but outvoted.
+    """
     body = page_text(html)
     if len(body) < 200:
-        return None
-    title = title_for(html, url)
+        return []
+    records = [_record(url, title_for(html, url), body)]
+    plans = pricing_plans(html)
+    if plans:
+        records.append(_record(url, "أسعار باقات زد — سعر كل باقة اشتراك",
+                               plans, suffix="#pricing"))
+    return records
+
+
+def _record(url: str, title: str, body: str, suffix: str = "") -> dict:
     text = arabic.normalize(f"{title}\n\n{body}")
     return {
-        "id": hashlib.sha256(url.encode()).hexdigest()[:16],
+        "id": hashlib.sha256((url + suffix).encode()).hexdigest()[:16],
         "source_file": url,
         "doc_title": title,
         "page": None,
@@ -409,13 +429,13 @@ def main() -> int:
     records, skipped = [], []
     for url in urls:
         try:
-            record = build(url, fetch(url))
+            made = build(url, fetch(url))
         except Exception as exc:
-            print(f"  ERROR {url}: {type(exc).__name__}")
+            print(f"  ERROR {url}: {exc}")
             continue
-        if record is None:
+        if not made:
             skipped.append(url)
-        else:
+        for record in made:
             records.append(record)
             if args.report:
                 flag = " [competitive]" if record["competitive"] else ""
