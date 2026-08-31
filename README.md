@@ -127,6 +127,25 @@ is told to trust them over a crawled page when the two disagree. Start from
 A curated file still showing `...` is treated as unfilled rather than as an
 answer, so an untouched template cannot become a confidently wrong reply.
 
+## Diagnosing a missing answer
+
+When the assistant says it does not know, three different faults look
+identical from the outside: the content was never ingested, it is in the
+corpus but ranks too low to be retrieved, or the index is stale. They need
+opposite fixes, and guessing between them cost this project six rounds.
+
+```bash
+python service/why.py "كم سعر باقة النمو" --expect "سعر باقة النمو"
+```
+
+It reports, in order: whether the text is in the corpus at all; which query
+terms match nothing anywhere; the top results the service would actually
+retrieve; and, if the expected chunk is missing from them, what rank it did
+reach. That last number is the one that matters — "absent" and "present at
+rank 40" produce the same silence and mean completely different things.
+
+Works without an API key on keyword scoring alone.
+
 ## Fields that carry design weight
 
 Every chunk is written with `audience` and `country`, both deliberate:
