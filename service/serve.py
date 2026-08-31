@@ -201,9 +201,24 @@ def main() -> int:
     INDEX = Index(args.corpus, args.vectors)
     state = "indexed" if INDEX.ready else "not indexed — build it from the page"
     print(f"{INDEX.n:,} chunks loaded, {state}")
+    try:
+        # Threaded: the status endpoint has to answer while a build is running.
+        server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    except OSError as exc:
+        if exc.errno not in (48, 98):       # EADDRINUSE on macOS / Linux
+            raise
+        # An earlier server still holding the port keeps serving its own,
+        # older corpus. The page looks fine and answers from stale data,
+        # which is far more confusing than a failure to start.
+        print(f"\nPort {args.port} is already in use — an older ask-zid is "
+              f"still running and\nstill answering from whatever corpus it "
+              f"loaded. Stop it first:\n"
+              f"\n    lsof -ti:{args.port} | xargs kill\n"
+              f"\nor press Ctrl+C in the terminal running it, then start "
+              f"again.\n")
+        return 1
     print(f"http://localhost:{args.port}")
-    # Threaded: the status endpoint has to answer while a build is running.
-    ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
+    server.serve_forever()
     return 0
 
 
