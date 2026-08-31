@@ -41,7 +41,13 @@ pdfs: | $(DATA)
 		cd ingest && $(PY) extract.py "$(PDFS)" --out ../$(DATA)/pdfs.jsonl; \
 	fi
 
-crawl: help-center marketing pdfs
+# Hand-maintained answers that exist on no page. Runs first: it is the only
+# source that can be wrong because someone forgot to update it, so it should
+# be the first thing printed.
+facts: | $(DATA)
+	cd ingest && $(PY) fetch_facts.py ../facts --out ../$(DATA)/facts.jsonl
+
+crawl: facts help-center marketing pdfs
 
 corpus: | $(DATA)
 	cd ingest && $(PY) chunk.py $$(ls ../$(DATA)/*.jsonl | grep -v corpus.jsonl) \
@@ -54,4 +60,4 @@ serve:
 	cd service && $(PY) serve.py --corpus ../$(DATA)/corpus.jsonl \
 		--vectors ../$(DATA)/vectors.npz
 
-.PHONY: help crawl corpus embed serve pdfs help-center marketing
+.PHONY: help crawl corpus embed serve pdfs help-center marketing facts

@@ -40,6 +40,7 @@ instantly, and fine-tuning cannot produce citations.
 - [x] Embedding + hybrid retrieval (`ingest/embed.py`, `service/search.py`)
 - [x] Answer service with citations and grounded refusal (`service/answer.py`)
 - [x] Local test UI (`service/serve.py`)
+- [x] Curated facts source for answers no page carries (`ingest/fetch_facts.py`)
 - [ ] Embeddable widget for Sales Hunter
 - [ ] Evaluation set of real employee questions
 
@@ -107,6 +108,24 @@ answers.
 See [`ingest/README.md`](ingest/README.md) — it documents the Arabic
 extraction defects in the source PDFs, the help centre's empty REST
 responses, the client-rendered marketing pages, and how each is handled.
+
+## Answers no page carries
+
+Some questions cannot be answered by crawling, and the clearest case is the
+one employees ask most: what a subscription package costs. The pricing page
+renders its figures from values it keeps apart from their labels — the
+payload contains "ريال شهرياً" with no number attached — so no scraper
+recovers "the Professional package costs X". Searching every ingested
+source confirmed it: not one riyal figure anywhere sits against a package
+tier as its subscription price.
+
+`facts/` holds those answers as Markdown you maintain by hand. They are
+ingested like any other source but marked `curated`, and the answer service
+is told to trust them over a crawled page when the two disagree. Start from
+`facts/pricing.md`, which carries the table to fill in.
+
+A curated file still showing `...` is treated as unfilled rather than as an
+answer, so an untouched template cannot become a confidently wrong reply.
 
 ## Fields that carry design weight
 
