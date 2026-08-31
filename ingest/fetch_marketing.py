@@ -95,22 +95,75 @@ def fetch(url: str, retries: int = 3) -> str:
     return ""
 
 
+LINK_RE = re.compile(r'href="(/ar(?:/[^"#?]*)?)"')
+
+
+def _from_sitemap() -> list[str]:
+    try:
+        xml = fetch(SITEMAP)
+    except Exception as exc:
+        print(f"sitemap fetch failed ({type(exc).__name__})")
+        return []
+    return re.findall(r"<loc>([^<]+)</loc>", xml)
+
+
+def _by_crawling(depth: int = 2) -> list[str]:
+    """Follow links from the Arabic homepage when the sitemap is unusable.
+
+    Fewer pages than the sitemap lists, but the alternative is proceeding
+    with only the hard-coded market URLs — which is what silently happened
+    once, leaving a corpus with no pricing in it and no sign anything was
+    missing.
+    """
+    visited: set[str] = set()
+    found: set[str] = {f"{BASE_SITE}/ar"}
+    frontier = [f"{BASE_SITE}/ar"]
+    for _ in range(depth):
+        nxt = []
+        for url in frontier:
+            if url in visited:
+                continue
+            visited.add(url)
+            try:
+                html = fetch(url)
+            except Exception:
+                continue
+            for path in LINK_RE.findall(html):
+                full = BASE_SITE + path
+                if full not in found:
+                    found.add(full)
+                    nxt.append(full)
+            time.sleep(DELAY)
+        if not nxt:
+            break
+        frontier = nxt
+    return sorted(found)
+
+
 def sitemap_urls() -> list[str]:
-    xml = fetch(SITEMAP)
-    urls = re.findall(r"<loc>([^<]+)</loc>", xml)
-    # Arabic only: /en/ is a near-duplicate translation and would double the
-    # index with content that retrieves against the same questions.
+    """Every Arabic page worth fetching, from the sitemap or by crawling."""
+    raw = _from_sitemap()
+    source = "sitemap"
+    arabic = [u for u in raw if "/ar" in u and not SKIP.search(u)]
+    if not arabic:
+        # Silence here is the dangerous outcome: a blocked or altered
+        # sitemap once reduced the crawl to five hard-coded URLs, and the
+        # run still reported success.
+        print("WARNING: the sitemap yielded no Arabic pages "
+              f"({len(raw)} <loc> entries seen). Falling back to crawling links.")
+        arabic = [u for u in _by_crawling() if not SKIP.search(u)]
+        source = "link crawl"
+
     # The sitemap repeats some entries, and trailing-slash variants of the
     # same page are the same page.
     seen, out = set(), []
-    for url in urls:
-        if "/ar" not in url or SKIP.search(url):
-            continue
+    for url in arabic:
         key = url.rstrip("/")
         if key in seen:
             continue
         seen.add(key)
         out.append(url)
+    print(f"{len(out)} Arabic pages found via {source}")
     return out
 
 
