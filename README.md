@@ -48,15 +48,24 @@ instantly, and fine-tuning cannot produce citations.
 Everything up to `embed` works without an API key.
 
 ```bash
-pip install -r ingest/requirements.txt -r service/requirements.txt
+python3 -m pip install -r ingest/requirements.txt -r service/requirements.txt
 
-make crawl PDFS=/path/to/pdfs   # fetch all three sources
-make corpus                     # chunk them into data/corpus.jsonl
+make crawl                 # web sources, ~10 min, no API key needed
+make crawl PDFS=~/zid-pdfs # ...or include a folder of PDFs
+make corpus                # chunk everything into data/corpus.jsonl
 
-export OPENAI_API_KEY=sk-...    # or put it in a .env (git-ignored)
-make embed                      # ~1 cent for this corpus
-make serve                      # http://localhost:8000
+echo "OPENAI_API_KEY=sk-..." > .env   # .env is git-ignored
+make embed                 # ~1 cent for this corpus
+make serve                 # http://localhost:8000
 ```
+
+Run the lines one at a time rather than pasting the block — a failure
+partway through otherwise scrolls past unnoticed.
+
+On macOS use `python3 -m pip`, not `pip`, which is usually absent. `make`
+needs the Xcode command line tools (`xcode-select --install`); without them
+each target is a single command you can run by hand — see the Makefile.
+If `python3` is not on your PATH, pass its location: `make crawl PY=/usr/bin/python3`.
 
 The key can also be pasted into the page itself, which is usually easier
 than exporting a variable before every run. It is kept in that browser's
