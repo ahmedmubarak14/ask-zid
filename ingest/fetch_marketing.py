@@ -33,7 +33,8 @@ from bs4 import BeautifulSoup
 
 import arabic
 
-SITEMAP = "https://zid.sa/sitemap.xml"
+BASE_SITE = "https://zid.sa"
+SITEMAP = f"{BASE_SITE}/sitemap.xml"
 UA = {"User-Agent": "ask-zid-ingest/0.1 (+internal knowledge base)"}
 DELAY = 1.0
 
@@ -129,6 +130,49 @@ def collapse_repeats(lines: list[str]) -> list[str]:
     return out
 
 
+# Next.js streams the page as an RSC flight payload inside these calls. On
+# client-rendered pages it is the only place the text exists.
+_RSC = re.compile(r'self\.__next_f\.push\(\[1,\s*("(?:[^"\\]|\\.)*")\s*\]\)', re.S)
+# Prose, as opposed to the class names, URLs and component ids around it.
+_PROSE = re.compile(r"[؀-ۿ][؀-ۿ\s،.:؛؟!ـ%\d\u2013\u2014-]{6,}")
+
+_chrome_cache: set[str] | None = None
+
+
+def _rsc_strings(html: str) -> list[str]:
+    """Readable strings from a Next.js flight payload, in order of appearance."""
+    parts = []
+    for match in _RSC.finditer(html):
+        try:
+            parts.append(json.loads(match.group(1)))
+        except ValueError:
+            continue
+    seen, out = set(), []
+    for found in _PROSE.findall("".join(parts)):
+        text = found.strip()
+        if text and text not in seen:
+            seen.add(text)
+            out.append(text)
+    return out
+
+
+def chrome_strings() -> set[str]:
+    """Strings common to every page, learned from a URL that does not exist.
+
+    The flight payload carries the whole shared bundle - nav, footer, banner,
+    the not-found component - alongside the page's own copy. Fetching a bogus
+    path once yields exactly that shared set, so subtracting it leaves the
+    page's real content without hand-maintaining a blocklist.
+    """
+    global _chrome_cache
+    if _chrome_cache is None:
+        try:
+            _chrome_cache = set(_rsc_strings(fetch(f"{BASE_SITE}/ar/__no_such_page__/")))
+        except Exception:
+            _chrome_cache = set()
+    return _chrome_cache
+
+
 def _lines_from(blocks, strip_header: bool) -> list[str]:
     lines = []
     for block in blocks:
@@ -164,6 +208,12 @@ def page_text(html: str) -> str:
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
         lines = _lines_from([soup.body], strip_header=True)
+    if sum(len(l) for l in lines) < 200:
+        # Client-rendered: nothing in the served markup, everything in the
+        # flight payload. Reading order there is approximate, which retrieval
+        # tolerates, so such pages are marked rather than silently mixed in.
+        chrome = chrome_strings()
+        lines = [l for l in _rsc_strings(html) if l not in chrome]
     return "\n".join(collapse_repeats(lines))
 
 

@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
-chunks.jsonl
+.env
+*.jsonl
+*.npy

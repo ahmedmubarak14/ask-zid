@@ -36,25 +36,46 @@ instantly, and fine-tuning cannot produce citations.
 - [x] PDF ingestion with Arabic extraction repair (`ingest/extract.py`)
 - [x] Help centre ingestion (`ingest/fetch_help_center.py`)
 - [x] Marketing site, pricing and country pages (`ingest/fetch_marketing.py`)
-- [ ] Embedding + hybrid retrieval (vector + full-text)
-- [ ] Answer service with citations and grounded refusal
+- [x] Chunking (`ingest/chunk.py`)
+- [x] Embedding + hybrid retrieval (`ingest/embed.py`, `service/search.py`)
+- [x] Answer service with citations and grounded refusal (`service/answer.py`)
+- [x] Local test UI (`service/serve.py`)
 - [ ] Embeddable widget for Sales Hunter
 - [ ] Evaluation set of real employee questions
+
+## Running the test version
+
+Everything up to `embed` works without an API key.
+
+```bash
+pip install -r ingest/requirements.txt -r service/requirements.txt
+
+make crawl PDFS=/path/to/pdfs   # fetch all three sources
+make corpus                     # chunk them into data/corpus.jsonl
+
+export OPENAI_API_KEY=sk-...    # or put it in a .env you never commit
+make embed                      # ~1 cent for this corpus
+make serve                      # http://localhost:8000
+```
+
+The test UI shows the retrieved passages under every answer. That matters
+more than it looks: when an answer is wrong, the passages say whether
+retrieval missed or the model ignored what it was given, and those are
+different bugs with different fixes. An answer that cites nothing is flagged
+in the interface — a fluent reply with no citation is the failure mode worth
+watching, not an obviously empty one.
+
+Deliberately no database and no framework at this stage. The corpus is a few
+megabytes and a dot product over it takes milliseconds; pgvector, Supabase
+and the Sales Hunter widget are all worth adding once the answers are good,
+and every one of them added now is something to debug instead of the
+answers.
 
 ## Ingestion
 
 See [`ingest/README.md`](ingest/README.md) — it documents the Arabic
-extraction defects in the source PDFs and how each is repaired. Both
-ingesters emit the same chunk schema so they feed one index.
-
-```bash
-cd ingest
-pip install -r requirements.txt
-
-python extract.py /path/to/pdfs --report            # inspect quality
-python extract.py /path/to/pdfs --out chunks.jsonl
-python fetch_help_center.py --out help_center.jsonl
-```
+extraction defects in the source PDFs, the help centre's empty REST
+responses, the client-rendered marketing pages, and how each is handled.
 
 ## Fields that carry design weight
 

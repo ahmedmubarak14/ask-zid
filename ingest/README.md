@@ -124,18 +124,49 @@ Deduplication is conservative — only immediately repeated lines and blocks
 are collapsed, because a "drop anything seen before" rule would delete real
 price rows where one figure legitimately appears against several packages.
 
-### Pages that need a browser
+### Client-rendered pages
 
-Twelve zid.sa pages are client-rendered and yield nothing over plain HTTP —
-`/zidx25` serves 220 KB of HTML and 127 characters of text. Among them are
-`/about`, `/contact` and `/legal`; the rest are interactive tools
-(`free-tools/*`) and campaign pages with little to answer from.
+Some zid.sa pages serve almost no markup — `/zidx25` is 220 KB of HTML and
+127 characters of text — because Next.js streams the content as an RSC
+flight payload instead. Rather than add a headless browser for them, the
+ingester parses that payload directly.
 
-`fetch_marketing.py` names them in its summary rather than folding them into
-a count, because a page yielding nothing is almost always client-rendered
-rather than empty, and a bare number hides which parts of the site the
-assistant has no answer for. Recovering them needs a headless browser
-(Playwright), which the ingester does not require for anything else.
+Separating a page's own copy from the shared bundle in it needs no
+hand-maintained blocklist: fetching one URL that does not exist returns
+exactly the strings every page carries (nav, footer, banner, the not-found
+component), and subtracting that set leaves the page's real content.
+
+Reading order from a flight payload is approximate, which retrieval
+tolerates but a reader would notice.
+
+`/ar/about`, `/ar/contact` and `/ar/legal` yield nothing by any method:
+they are empty stubs whose real content lives at `/ar/about-zid`,
+`/ar/contact-sales` and `/ar/legal/terms-conditions`, all of which are
+ingested. The summary names any page that comes back empty rather than
+folding it into a count — a bare number cannot distinguish a thin page from
+a broken extractor.
+
+## Chunking
+
+`chunk.py` is a separate step from the ingesters, because chunk size is what
+gets re-tuned most while evaluating retrieval and re-chunking should never
+mean re-crawling.
+
+Sizing uses the GPT-5 tokenizer, not a character heuristic: Arabic runs
+about 0.295 tokens per character against roughly 0.25 for English, so a
+chars/4 rule quietly produces chunks a third larger than intended.
+
+Target 450 tokens, hard cap 700, with three rules that exist because
+breaking them produces chunks that retrieve badly:
+
+* **Markdown tables are never split.** Half a pricing table answers worse
+  than no table.
+* **Every chunk repeats its document title.** A retrieved fragment of
+  shipping rates otherwise does not say which document it came from.
+* **Very large blocks split on sentence boundaries first**, then on a hard
+  token count. The terms and conditions page is a single 32,000-token
+  document, far past anything a retriever can use as one unit; it becomes
+  48 chunks.
 
 ## Corpus
 

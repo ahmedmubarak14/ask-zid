@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>اسأل زد</title>
+<style>
+  :root{
+    --bg:#faf9fb; --card:#fff; --ink:#1f0433; --muted:#6b5b7a;
+    --line:#e7e1ee; --accent:#ae72ff; --accent-ink:#1f0433; --warn:#b4541f;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#140322;--card:#1e0b30;--ink:#f3ecfa;--muted:#a894bd;
+          --line:#33194b;--accent:#ae72ff;--accent-ink:#fff;--warn:#ffb27a;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.65 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
+  header{padding:20px 22px;border-bottom:1px solid var(--line);
+         display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  h1{margin:0;font-size:19px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px}
+  main{max-width:820px;margin:0 auto;padding:22px}
+  form{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+  input[type=text]{flex:1 1 320px;padding:12px 14px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
+  select{padding:12px 10px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);color:var(--ink);font:inherit}
+  button{padding:12px 20px;border:0;border-radius:10px;background:var(--accent);
+    color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
+  button[disabled]{opacity:.55;cursor:default}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+        padding:16px 18px;margin-bottom:14px}
+  .answer{white-space:pre-wrap}
+  .flag{color:var(--warn);font-size:13px;margin-top:10px}
+  .cites{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13px}
+  .cites a{color:var(--accent);text-decoration:none}
+  .cites a:hover{text-decoration:underline}
+  details{margin-top:12px;font-size:13px}
+  summary{cursor:pointer;color:var(--muted)}
+  .p{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+  .meta{color:var(--muted);font-size:12px;margin-bottom:4px}
+  .snippet{white-space:pre-wrap;color:var(--muted);max-height:8.5em;overflow:auto}
+  .empty{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>اسأل زد</h1>
+  <span class="sub">نسخة اختبار داخلية — الإجابات من مصادر زد فقط</span>
+</header>
+<main>
+  <form id="f">
+    <input type="text" id="q" placeholder="اكتب سؤالك… مثال: كم رسوم المعاملات على مدى؟" autocomplete="off">
+    <select id="country" title="السوق">
+      <option value="">كل الأسواق</option>
+      <option value="SA">السعودية</option>
+      <option value="EG">مصر</option>
+      <option value="AE">الإمارات</option>
+      <option value="KW">الكويت</option>
+      <option value="OM">عُمان</option>
+      <option value="SY">سوريا</option>
+    </select>
+    <button id="go">اسأل</button>
+  </form>
+  <div id="out"></div>
+</main>
+<script>
+const f=document.getElementById('f'),q=document.getElementById('q'),
+      go=document.getElementById('go'),out=document.getElementById('out'),
+      country=document.getElementById('country');
+const esc=s=>(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+f.addEventListener('submit', async e=>{
+  e.preventDefault();
+  const question=q.value.trim(); if(!question) return;
+  go.disabled=true; out.innerHTML='<div class="card empty">…جاري البحث</div>';
+  try{
+    const r=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({question,country:country.value})});
+    const d=await r.json();
+    let html='<div class="card"><div class="answer">'+esc(d.answer)+'</div>';
+    if(!d.grounded) html+='<div class="flag">⚠ لم يستشهد بأي مصدر — تحقق قبل الاعتماد عليها</div>';
+    if(d.citations?.length){
+      html+='<div class="cites">المصادر: '+d.citations.map(c=>
+        `[${c.n}] <a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title||c.url)}</a>`
+      ).join(' · ')+'</div>';
+    }
+    html+='</div>';
+    if(d.passages?.length){
+      html+='<details><summary>المقاطع المسترجعة ('+d.passages.length+')</summary>';
+      for(const p of d.passages){
+        html+=`<div class="p"><div class="meta">[${p.n}] ${esc(p.title||'')} · ${esc(p.country||'—')} · ${p.score}</div>`
+            + `<div class="snippet">${esc(p.text)}</div></div>`;
+      }
+      html+='</details>';
+    }
+    out.innerHTML=html;
+  }catch(err){ out.innerHTML='<div class="card">خطأ: '+esc(String(err))+'</div>'; }
+  go.disabled=false;
+});
+</script>
+</body>
+</html>
