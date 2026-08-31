@@ -53,11 +53,24 @@ python3 -m pip install -r ingest/requirements.txt -r service/requirements.txt
 make crawl                 # web sources, ~10 min, no API key needed
 make crawl PDFS=~/zid-pdfs # ...or include a folder of PDFs
 make corpus                # chunk everything into data/corpus.jsonl
-
-echo "OPENAI_API_KEY=sk-..." > .env   # .env is git-ignored
-make embed                 # ~1 cent for this corpus
 make serve                 # http://localhost:8000
 ```
+
+Then paste an OpenAI key into the field on the page and press **بناء الفهرس**.
+The key never has to touch the terminal: the server embeds the corpus itself,
+shows progress while it works, and saves the vectors to `data/vectors.npz` so
+a restart does not repeat it. About a minute, and about a cent.
+
+`make embed` still exists if you would rather build the index from the
+command line; it reads `OPENAI_API_KEY` from the environment or a `.env`.
+
+Run the lines one at a time rather than pasting the block — a failure
+partway through otherwise scrolls past unnoticed.
+
+On macOS use `python3 -m pip`, not `pip`, which is usually absent. `make`
+needs the Xcode command line tools (`xcode-select --install`); without them
+each target is a single command you can run by hand — see the Makefile.
+If `python3` is not on your PATH, pass its location: `make crawl PY=/usr/bin/python3`.
 
 Run the lines one at a time rather than pasting the block — a failure
 partway through otherwise scrolls past unnoticed.

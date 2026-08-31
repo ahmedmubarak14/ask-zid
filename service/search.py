@@ -47,15 +47,27 @@ def tokenise(text: str) -> list[str]:
 
 
 class Index:
-    def __init__(self, corpus_path: pathlib.Path, vectors_path: pathlib.Path):
+    """The corpus, and its vectors once they exist.
+
+    Vectors are optional at construction. The server has to be able to start
+    and explain itself before anything is embedded — refusing to boot without
+    a vectors file means the only way to build one is the command line, which
+    is the friction this avoids.
+    """
+
+    def __init__(self, corpus_path: pathlib.Path,
+                 vectors_path: pathlib.Path | None = None):
         self.rows = [json.loads(line) for line in corpus_path.open(encoding="utf-8")]
-        store = np.load(vectors_path, allow_pickle=True)
-        self.vectors = store["vectors"]
-        if len(self.rows) != len(self.vectors):
-            raise SystemExit(
-                f"corpus has {len(self.rows)} chunks but vectors has "
-                f"{len(self.vectors)} — re-run embed.py"
-            )
+        self.n = len(self.rows)
+        self.vectors: np.ndarray | None = None
+        if vectors_path and vectors_path.exists():
+            store = np.load(vectors_path, allow_pickle=True)
+            vectors = store["vectors"]
+            # A stale vectors file is worse than none: it would silently
+            # answer from the wrong chunks. Mismatched length means rebuild.
+            if len(vectors) == self.n:
+                self.vectors = vectors
+
         self.tokens = [set(tokenise(r["text"])) for r in self.rows]
         # Rarer words should count for more; without it every chunk containing
         # "زد" scores alike and the signal is lost in the most common term.
@@ -63,7 +75,10 @@ class Index:
         for token_set in self.tokens:
             for token in token_set:
                 self.df[token] = self.df.get(token, 0) + 1
-        self.n = len(self.rows)
+
+    @property
+    def ready(self) -> bool:
+        return self.vectors is not None
 
     def _allowed(self, audience: str, country: str | None) -> np.ndarray:
         mask = np.ones(self.n, dtype=bool)
@@ -96,14 +111,16 @@ class Index:
         order = np.argsort(-sims)[:100]
         return [(int(i), float(sims[i])) for i in order if np.isfinite(sims[i])]
 
-    def search(self, query: str, query_vector: np.ndarray, k: int = 6,
+    def search(self, query: str, query_vector: np.ndarray | None, k: int = 6,
                audience: str = "internal", country: str | None = None) -> list[dict]:
         mask = self._allowed(audience, country)
         if not mask.any():
             return []
+        lists = [self.keyword_scores(query, mask)]
+        if self.vectors is not None and query_vector is not None:
+            lists.insert(0, self.vector_scores(query_vector, mask))
         ranked: dict[int, float] = {}
-        for results in (self.vector_scores(query_vector, mask),
-                        self.keyword_scores(query, mask)):
+        for results in lists:
             for rank, (index, _) in enumerate(results[:50]):
                 ranked[index] = ranked.get(index, 0.0) + 1.0 / (RRF_K + rank + 1)
 

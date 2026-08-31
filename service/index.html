@@ -53,6 +53,10 @@
   .ok{color:var(--muted);font-size:13px}
   .linkbtn{background:none;border:0;color:var(--accent);cursor:pointer;
     font:inherit;padding:0;text-decoration:underline}
+  .bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;
+    flex-basis:100%;margin-top:4px}
+  .bar>i{display:block;height:100%;background:var(--accent);width:0;
+    transition:width .3s ease}
 </style>
 </head>
 <body>
@@ -70,6 +74,13 @@
     <span class="ok">🔑 المفتاح محفوظ في هذا المتصفح</span>
     <button class="linkbtn" id="changekey" type="button">تغيير</button>
     <button class="linkbtn" id="clearkey" type="button">حذف</button>
+  </div>
+
+  <div class="keybar" id="buildbar" hidden>
+    <span class="ok" id="buildmsg"></span>
+    <button id="buildbtn" type="button">بناء الفهرس</button>
+    <div class="bar" id="barwrap" hidden><i id="bar"></i></div>
+    <div class="note">يُبنى مرة واحدة ويُحفظ في <code>data/vectors.npz</code>، ويستغرق دقيقة تقريبًا.</div>
   </div>
 
   <form id="f">
@@ -109,11 +120,146 @@ document.getElementById('savekey').onclick=()=>{
   const v=keyInput.value.trim();
   if(!v) return;
   writeKey(v); keyInput.value=''; renderKey();
+
+// --- index state -------------------------------------------------------
+const buildbar=document.getElementById('buildbar'),buildbtn=document.getElementById('buildbtn'),
+      buildmsg=document.getElementById('buildmsg'),bar=document.getElementById('bar'),
+      barwrap=document.getElementById('barwrap');
+let ready=false;
+
+async function refreshStatus(){
+  try{
+    const s=await (await fetch('/status')).json();
+    ready=s.ready;
+    const b=s.build||{};
+    if(s.ready){
+      buildbar.hidden=true; go.disabled=false; return true;
+    }
+    buildbar.hidden=false; go.disabled=true;
+    if(b.error){
+      buildmsg.textContent='تعذّر بناء الفهرس: '+b.error;
+      buildbtn.hidden=false; barwrap.hidden=true;
+      if(/key/i.test(b.error)){ keybar.hidden=false; keyok.hidden=true; }
+    }else if(b.running){
+      buildbtn.hidden=true; barwrap.hidden=false;
+      const pct=b.total?Math.round(100*b.done/b.total):0;
+      bar.style.width=pct+'%';
+      buildmsg.textContent=`جاري بناء الفهرس… ${b.done}/${b.total} مقطع (${pct}%)`;
+    }else{
+      buildmsg.textContent=`${s.chunks.toLocaleString('en')} مقطع جاهز — الفهرس غير مبني بعد.`;
+      buildbtn.hidden=false; barwrap.hidden=true;
+    }
+    return false;
+  }catch(e){ return false; }
+}
+
+buildbtn.onclick=async()=>{
+  const k=readKey();
+  if(!k){ keybar.hidden=false; keyok.hidden=true; keyInput.focus(); return; }
+  buildbtn.hidden=true;
+  await fetch('/index',{method:'POST',headers:{'X-OpenAI-Key':k}});
+  poll();
+};
+
+function poll(){
+  const t=setInterval(async()=>{ if(await refreshStatus()) clearInterval(t); },1200);
+}
+refreshStatus().then(ok=>{ if(!ok) poll(); });
 };
 keyInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();document.getElementById('savekey').click();} });
 document.getElementById('changekey').onclick=()=>{ keybar.hidden=false; keyok.hidden=true; keyInput.focus(); };
-document.getElementById('clearkey').onclick=()=>{ dropKey(); renderKey(); };
+document.getElementById('clearkey').onclick=()=>{ dropKey(); renderKey();
+
+// --- index state -------------------------------------------------------
+const buildbar=document.getElementById('buildbar'),buildbtn=document.getElementById('buildbtn'),
+      buildmsg=document.getElementById('buildmsg'),bar=document.getElementById('bar'),
+      barwrap=document.getElementById('barwrap');
+let ready=false;
+
+async function refreshStatus(){
+  try{
+    const s=await (await fetch('/status')).json();
+    ready=s.ready;
+    const b=s.build||{};
+    if(s.ready){
+      buildbar.hidden=true; go.disabled=false; return true;
+    }
+    buildbar.hidden=false; go.disabled=true;
+    if(b.error){
+      buildmsg.textContent='تعذّر بناء الفهرس: '+b.error;
+      buildbtn.hidden=false; barwrap.hidden=true;
+      if(/key/i.test(b.error)){ keybar.hidden=false; keyok.hidden=true; }
+    }else if(b.running){
+      buildbtn.hidden=true; barwrap.hidden=false;
+      const pct=b.total?Math.round(100*b.done/b.total):0;
+      bar.style.width=pct+'%';
+      buildmsg.textContent=`جاري بناء الفهرس… ${b.done}/${b.total} مقطع (${pct}%)`;
+    }else{
+      buildmsg.textContent=`${s.chunks.toLocaleString('en')} مقطع جاهز — الفهرس غير مبني بعد.`;
+      buildbtn.hidden=false; barwrap.hidden=true;
+    }
+    return false;
+  }catch(e){ return false; }
+}
+
+buildbtn.onclick=async()=>{
+  const k=readKey();
+  if(!k){ keybar.hidden=false; keyok.hidden=true; keyInput.focus(); return; }
+  buildbtn.hidden=true;
+  await fetch('/index',{method:'POST',headers:{'X-OpenAI-Key':k}});
+  poll();
+};
+
+function poll(){
+  const t=setInterval(async()=>{ if(await refreshStatus()) clearInterval(t); },1200);
+}
+refreshStatus().then(ok=>{ if(!ok) poll(); }); };
 renderKey();
+
+// --- index state -------------------------------------------------------
+const buildbar=document.getElementById('buildbar'),buildbtn=document.getElementById('buildbtn'),
+      buildmsg=document.getElementById('buildmsg'),bar=document.getElementById('bar'),
+      barwrap=document.getElementById('barwrap');
+let ready=false;
+
+async function refreshStatus(){
+  try{
+    const s=await (await fetch('/status')).json();
+    ready=s.ready;
+    const b=s.build||{};
+    if(s.ready){
+      buildbar.hidden=true; go.disabled=false; return true;
+    }
+    buildbar.hidden=false; go.disabled=true;
+    if(b.error){
+      buildmsg.textContent='تعذّر بناء الفهرس: '+b.error;
+      buildbtn.hidden=false; barwrap.hidden=true;
+      if(/key/i.test(b.error)){ keybar.hidden=false; keyok.hidden=true; }
+    }else if(b.running){
+      buildbtn.hidden=true; barwrap.hidden=false;
+      const pct=b.total?Math.round(100*b.done/b.total):0;
+      bar.style.width=pct+'%';
+      buildmsg.textContent=`جاري بناء الفهرس… ${b.done}/${b.total} مقطع (${pct}%)`;
+    }else{
+      buildmsg.textContent=`${s.chunks.toLocaleString('en')} مقطع جاهز — الفهرس غير مبني بعد.`;
+      buildbtn.hidden=false; barwrap.hidden=true;
+    }
+    return false;
+  }catch(e){ return false; }
+}
+
+buildbtn.onclick=async()=>{
+  const k=readKey();
+  if(!k){ keybar.hidden=false; keyok.hidden=true; keyInput.focus(); return; }
+  buildbtn.hidden=true;
+  await fetch('/index',{method:'POST',headers:{'X-OpenAI-Key':k}});
+  poll();
+};
+
+function poll(){
+  const t=setInterval(async()=>{ if(await refreshStatus()) clearInterval(t); },1200);
+}
+refreshStatus().then(ok=>{ if(!ok) poll(); });
 const esc=s=>(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
 f.addEventListener('submit', async e=>{
@@ -126,6 +272,9 @@ f.addEventListener('submit', async e=>{
     const r=await fetch('/ask',{method:'POST',headers,
       body:JSON.stringify({question,country:country.value})});
     const d=await r.json();
+    if(r.status===409){
+      out.innerHTML=''; await refreshStatus(); go.disabled=false; return;
+    }
     if(d.error){
       out.innerHTML='<div class="card"><div class="flag">⚠ '+esc(d.error)+'</div></div>';
       if(/key/i.test(d.error)){ keybar.hidden=false; keyok.hidden=true; }
