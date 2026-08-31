@@ -1,10 +1,10 @@
 # Build the corpus and run the test server.
 #
-#   make crawl                  # fetch web sources (PDFs optional, see below)
-#   make crawl PDFS=~/zid-pdfs  # ...including a folder of PDFs
-#   make corpus                 # chunk everything into data/corpus.jsonl
-#   make embed                  # needs an OpenAI key
-#   make serve                  # http://localhost:8000
+#   make crawl                       # fetch web sources
+#   make crawl PDFS=~/Downloads/pdfs # ...including a folder of PDFs
+#   make corpus                      # chunk everything into data/corpus.jsonl
+#   make serve                       # http://localhost:8000, index built in-page
+#   make embed                       # optional: build the index from the CLI
 #
 # PY overrides the interpreter if python3 is not on PATH.
 
@@ -16,24 +16,32 @@ $(DATA):
 	mkdir -p $(DATA)
 
 help:
-	@echo "make crawl [PDFS=dir] | make corpus | make embed | make serve"
+	@echo "make crawl [PDFS=dir] | make corpus | make serve | make embed"
 
-$(DATA)/help_center.jsonl: | $(DATA)
+# Crawl targets are phony, not file targets. As file targets, make treats an
+# existing data/help_center.jsonl as up to date and does nothing — "make
+# crawl" then prints a summary having fetched not one page, which is how a
+# five-page corpus survived three attempts to rebuild it. No dependency can
+# express "the website changed", so asking for a crawl must perform one.
+help-center: | $(DATA)
 	cd ingest && $(PY) fetch_help_center.py --out ../$(DATA)/help_center.jsonl
 
-$(DATA)/marketing.jsonl: | $(DATA)
+marketing: | $(DATA)
 	cd ingest && $(PY) fetch_marketing.py --out ../$(DATA)/marketing.jsonl
 
-# PDFs are optional: the web sources are the bulk of the corpus, and asking
-# for a folder that may not exist should not block a first run.
+# A PDFS path that does not exist is a typo, not a decision to skip PDFs.
 pdfs: | $(DATA)
-	@if [ -n "$(PDFS)" ] && [ -d "$(PDFS)" ]; then \
-		cd ingest && $(PY) extract.py "$(PDFS)" --out ../$(DATA)/pdfs.jsonl; \
-	else \
+	@if [ -z "$(PDFS)" ]; then \
 		echo "no PDF folder given (PDFS=...), skipping PDFs"; \
+	elif [ ! -d "$(PDFS)" ]; then \
+		echo "ERROR: PDFS=$(PDFS) is not a directory."; \
+		echo "       Give the real path to your PDFs, e.g. PDFS=~/Downloads/zid-pdfs"; \
+		exit 1; \
+	else \
+		cd ingest && $(PY) extract.py "$(PDFS)" --out ../$(DATA)/pdfs.jsonl; \
 	fi
 
-crawl: $(DATA)/help_center.jsonl $(DATA)/marketing.jsonl pdfs
+crawl: help-center marketing pdfs
 
 corpus: | $(DATA)
 	cd ingest && $(PY) chunk.py $$(ls ../$(DATA)/*.jsonl | grep -v corpus.jsonl) \
@@ -46,4 +54,4 @@ serve:
 	cd service && $(PY) serve.py --corpus ../$(DATA)/corpus.jsonl \
 		--vectors ../$(DATA)/vectors.npz
 
-.PHONY: help crawl corpus embed serve pdfs
+.PHONY: help crawl corpus embed serve pdfs help-center marketing
