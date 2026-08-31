@@ -28,16 +28,18 @@ import hashlib
 import json
 import pathlib
 import re
+import sys
 import time
-import urllib.request
 
 from bs4 import BeautifulSoup
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
 import arabic
+import webfetch
 
 BASE_SITE = "https://zid.sa"
 SITEMAP = f"{BASE_SITE}/sitemap.xml"
-UA = {"User-Agent": "ask-zid-ingest/0.1 (+internal knowledge base)"}
 DELAY = 1.0
 
 # Pages the sitemap does not list. The four GCC/Egypt market pages are live
@@ -82,17 +84,8 @@ LOCAL_CURRENCY = re.compile(r"(جنيه|درهم|دينار|ريال عماني|
 COMPETITIVE = re.compile(r"/switchers")
 
 
-def fetch(url: str, retries: int = 3) -> str:
-    for attempt in range(retries):
-        try:
-            return urllib.request.urlopen(
-                urllib.request.Request(url, headers=UA), timeout=45
-            ).read().decode("utf-8", "ignore")
-        except Exception:
-            if attempt == retries - 1:
-                raise
-            time.sleep(2 ** attempt)
-    return ""
+def fetch(url: str) -> str:
+    return webfetch.get(url)
 
 
 LINK_RE = re.compile(r'href="(/ar(?:/[^"#?]*)?)"')
@@ -162,7 +155,9 @@ def sitemap_urls() -> list[str]:
         if key in seen:
             continue
         seen.add(key)
-        out.append(url)
+        # zid.sa 308-redirects to the trailing-slash form; requesting it
+        # directly saves a round trip on every page.
+        out.append(key + "/")
     print(f"{len(out)} Arabic pages found via {source}")
     return out
 

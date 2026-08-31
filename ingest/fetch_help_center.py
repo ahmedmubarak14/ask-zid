@@ -32,17 +32,20 @@ import hashlib
 import json
 import pathlib
 import re
+import sys
 import time
 import urllib.error
 import urllib.request
 
 from bs4 import BeautifulSoup
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
 import arabic
+import webfetch
 
 BASE = "https://help.zid.sa"
 TYPES = ["posts", "pages", "faqs", "tips", "zid-academy", "promotion", "zid-faqs"]
-UA = {"User-Agent": "ask-zid-ingest/0.1 (+internal knowledge base)"}
 
 # Selectors carrying the body on pages the REST API returns empty for.
 BODY_SELECTORS = [".panel-content.inner", ".post-desc"]
@@ -55,23 +58,15 @@ BOILERPLATE = re.compile(
 DELAY = 1.0
 
 
-def fetch(url: str, as_json: bool = True, retries: int = 3):
-    for attempt in range(retries):
-        try:
-            raw = urllib.request.urlopen(
-                urllib.request.Request(url, headers=UA), timeout=45
-            ).read().decode("utf-8", "ignore")
-            return json.loads(raw) if as_json else raw
-        except urllib.error.HTTPError as exc:
-            if exc.code == 400:  # page past the last one
-                return None
-            if attempt == retries - 1:
-                raise
-        except Exception:
-            if attempt == retries - 1:
-                raise
-        time.sleep(2 ** attempt)
-    return None
+def fetch(url: str, as_json: bool = True):
+    """Fetch a URL; a 400 from the REST API means the last page was passed."""
+    try:
+        raw = webfetch.get(url)
+    except RuntimeError as exc:
+        if as_json and "HTTP 400" in str(exc):
+            return None
+        raise
+    return json.loads(raw) if as_json else raw
 
 
 def to_text(html: str) -> str:
