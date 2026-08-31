@@ -258,12 +258,19 @@ def page_text(html: str) -> str:
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
         lines = _lines_from([soup.body], strip_header=True)
-    if sum(len(l) for l in lines) < 200:
-        # Client-rendered: nothing in the served markup, everything in the
-        # flight payload. Reading order there is approximate, which retrieval
-        # tolerates, so such pages are marked rather than silently mixed in.
-        chrome = chrome_strings()
-        lines = [l for l in _rsc_strings(html) if l not in chrome]
+
+    # Merge in anything the flight payload carries that the markup does not.
+    # On the pricing page the served HTML yields 3,600 characters while the
+    # payload holds package names, tier features and the commission answer —
+    # content a reader sees but a parser of the markup alone never gets.
+    # Reading order there is approximate, so it is appended rather than
+    # interleaved.
+    have = {l.strip() for l in lines}
+    chrome = chrome_strings()
+    extra = [s for s in _rsc_strings(html) if s not in chrome and s.strip() not in have]
+    if extra:
+        lines = lines + extra
+
     return "\n".join(collapse_repeats(lines))
 
 
