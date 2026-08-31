@@ -161,8 +161,12 @@ def main() -> int:
     args = parser.parse_args()
 
     records = []
+    per_source: list[tuple[str, int, int]] = []
     for path in args.inputs:
+        before = len(records)
+        docs = 0
         for line in path.open(encoding="utf-8"):
+            docs += 1
             doc = json.loads(line)
             pieces = chunk_text(doc["text"], doc.get("doc_title", ""))
             for index, piece in enumerate(pieces):
@@ -177,10 +181,17 @@ def main() -> int:
                     f"{doc['id']}:{index}".encode()
                 ).hexdigest()[:16]
                 records.append(record)
+        per_source.append((path.name, docs, len(records) - before))
 
     with args.out.open("w", encoding="utf-8") as fh:
         for record in records:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    # Per source, so a source that silently contributed nothing is visible.
+    # A single total hides a failed crawl behind a plausible-looking number.
+    for name, docs, made in per_source:
+        note = "  <- nothing from this source" if made == 0 else ""
+        print(f"  {name:26s} {docs:5,} docs -> {made:5,} chunks{note}")
 
     sizes = sorted(r["tokens"] for r in records)
     total = sum(sizes)

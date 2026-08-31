@@ -27,6 +27,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from config import resolve_key
+from vectors import unit
 
 MODEL = "text-embedding-3-small"
 DIMS = 1536
@@ -92,7 +93,7 @@ def main() -> int:
 
     vectors = np.stack([cached[r["_key"]] for r in rows])
     # Pre-normalise so retrieval is a plain dot product.
-    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+    vectors = unit(vectors)
     np.savez_compressed(
         args.out,
         vectors=vectors,

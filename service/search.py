@@ -22,8 +22,12 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import sys
 
 import numpy as np
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from vectors import sanitise
 
 RRF_K = 60
 ARABIC_PREFIXES = ("ال", "بال", "كال", "فال", "وال", "لل")
@@ -68,6 +72,10 @@ class Index:
             # A stale vectors file is worse than none: it would silently
             # answer from the wrong chunks. Mismatched length means rebuild.
             if len(vectors) == self.n:
+                vectors, broken = sanitise(vectors)
+                if broken:
+                    print(f"warning: {broken} vector(s) were not finite and "
+                          f"have been zeroed; rebuild the index to fix")
                 self.vectors = vectors
 
         self.tokens = [set(tokenise(r["text"])) for r in self.rows]

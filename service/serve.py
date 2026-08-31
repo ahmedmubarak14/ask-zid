@@ -35,6 +35,7 @@ import answer as answer_mod
 import embed as embed_mod
 from config import resolve_key
 from search import Index
+from vectors import unit
 
 HERE = pathlib.Path(__file__).parent
 INDEX: Index | None = None
@@ -61,8 +62,7 @@ def build_vectors(key: str) -> None:
             collected.extend(embed_mod.embed_batch(batch, key))
             with BUILD_LOCK:
                 BUILD["done"] = min(start + embed_mod.BATCH, len(texts))
-        vectors = np.asarray(collected, dtype=np.float32)
-        vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+        vectors = unit(np.asarray(collected, dtype=np.float32))
         VECTORS_PATH.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(
             VECTORS_PATH,
@@ -93,7 +93,7 @@ def embed_query(text: str, key: str) -> np.ndarray:
     with urllib.request.urlopen(request, timeout=60) as response:
         vector = json.loads(response.read())["data"][0]["embedding"]
     vector = np.asarray(vector, dtype=np.float32)
-    return vector / np.linalg.norm(vector)
+    return unit(vector)
 
 
 class Handler(BaseHTTPRequestHandler):
